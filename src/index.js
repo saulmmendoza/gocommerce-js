@@ -61,7 +61,56 @@ function cleanPath(path) {
   return path.replace(/^https?:\/\/[^\/]+/, "");
 }
 
+/**
+ * GoCommerce API client for JavaScript.
+ * See README.md for Quick Start and Examples of different flows that it covers for e-commerce.
+ *
+ * @example
+ * // Quick Start
+ * import GoCommerce from "gocommerce-js";
+ *
+ * const commerce = new GoCommerce({
+ *   APIUrl: "https://commerce.netlify.com"
+ * });
+ *
+ * // E-commerce Flow: Adding to Cart
+ * commerce.addToCart({
+ *   path: "/products/book-1/",
+ *   quantity: 2,
+ *   meta: {
+ *     photo: "/images/mugs/netlig-01.png"
+ *   }
+ * }).then((lineItem) => console.log(lineItem));
+ *
+ * @example
+ * // E-commerce Flow: Checkout
+ * commerce.order({
+ *   email: "user@example.com",
+ *   shipping_address: {
+ *     name: "John Doe",
+ *     address1: "123 Main St",
+ *     city: "Anytown",
+ *     state: "CA",
+ *     country: "USA",
+ *     zip: "12345"
+ *   }
+ * }).then(({cart, order}) => {
+ *   return commerce.payment({
+ *     "provider": "stripe",
+ *     "stripe_token": "tok_visa",
+ *     "amount": cart.total.cents,
+ *     "order_id": order.id,
+ *   });
+ * }).then((transaction) => {
+ *   console.log("Order confirmed!");
+ * });
+ */
 export default class GoCommerce {
+  /**
+   * Instantiate a new GoCommerce client
+   * @param {Object} options Configuration options
+   * @param {string} options.APIUrl URL to the GoCommerce instance
+   */
   constructor(options) {
     if (!options.APIUrl) {
       throw "You must specify an APIUrl of your GoCommerce instance";
@@ -174,6 +223,10 @@ export default class GoCommerce {
     return calculatePrices(this.settings, claims, this.billing_country, this.currency, this.coupon, [item]);
   }
 
+  /**
+   * Get the current cart state
+   * @returns {Object} The cart object containing items, subtotal, taxes, and total
+   */
   getCart() {
     const cart = { items: {} };
     const items = [];
@@ -207,21 +260,41 @@ export default class GoCommerce {
     return cart;
   }
 
+  /**
+   * Set the currency
+   * @param {string} currency The currency code (e.g., 'USD')
+   * @returns {Promise<Object>} The updated cart
+   */
   setCurrency(currency) {
     this.currency = currency;
     return Promise.resolve(this.getCart());
   }
 
+  /**
+   * Set the billing country
+   * @param {string} country The country code
+   * @returns {Promise<Object>} The updated cart
+   */
   setCountry(country) {
     this.billing_country = country;
     return Promise.resolve(this.getCart());
   }
 
+  /**
+   * Set the VAT number
+   * @param {string} vatnumber The VAT number
+   * @returns {Promise<Object>} The updated cart
+   */
   setVatnumber(vatnumber) {
     this.vatnumber = vatnumber;
     return this.verifyVatnumber(vatnumber).then(() => this.getCart());
   }
 
+  /**
+   * Set the coupon code
+   * @param {string} code The coupon code
+   * @returns {Promise<Object|null>} The coupon object if valid, else null
+   */
   setCoupon(code) {
     if (code == null) {
       this.coupon = null;
@@ -233,6 +306,11 @@ export default class GoCommerce {
     });
   }
 
+  /**
+   * Update the quantity of an item in the cart
+   * @param {string} sku The SKU of the item to update
+   * @param {number} quantity The new quantity (set to 0 to remove)
+   */
   updateCart(sku, quantity) {
     if (this.line_items[sku]) {
       if (quantity > 0) {
@@ -246,11 +324,25 @@ export default class GoCommerce {
     }
   }
 
+  /**
+   * Clear the cart
+   */
   clearCart() {
     this.line_items = {};
     this.persistCart();
   }
 
+  /**
+   * Place an order
+   * @param {Object} orderDetails Order details
+   * @param {string} orderDetails.email The customer's email
+   * @param {Object} [orderDetails.shipping_address] Shipping address
+   * @param {string} [orderDetails.shipping_address_id] Shipping address ID
+   * @param {Object} [orderDetails.billing_address] Billing address
+   * @param {string} [orderDetails.billing_address_id] Billing address ID
+   * @param {Object} [orderDetails.data] Additional data
+   * @returns {Promise<Object>} A promise that resolves with cart and order objects
+   */
   order(orderDetails) {
     const { email, shipping_address, shipping_address_id, billing_address, billing_address_id, data } = orderDetails;
 
@@ -290,6 +382,18 @@ export default class GoCommerce {
     }
   }
 
+  /**
+   * Process a payment for an order
+   * @param {Object} paymentDetails Payment details
+   * @param {string} paymentDetails.order_id The order ID
+   * @param {number} paymentDetails.amount The amount in cents
+   * @param {string} paymentDetails.provider The payment provider (e.g., 'stripe')
+   * @param {string} [paymentDetails.stripe_token] Stripe token
+   * @param {string} [paymentDetails.stripe_payment_method_id] Stripe payment method ID
+   * @param {string} [paymentDetails.paypal_payment_id] PayPal payment ID
+   * @param {string} [paymentDetails.paypal_user_id] PayPal user ID
+   * @returns {Promise<Object>} Transaction response
+   */
   payment(paymentDetails) {
     const {
       order_id,
@@ -330,6 +434,11 @@ export default class GoCommerce {
     }
   }
 
+  /**
+   * Confirm a payment
+   * @param {string} paymentId The payment ID
+   * @returns {Promise<Object>} Confirmation response
+   */
   paymentConfirm(paymentId) {
     return this.authHeaders().then(headers =>
       this.api.request(`/payments/${paymentId}/confirm`, {
@@ -339,6 +448,12 @@ export default class GoCommerce {
     );
   }
 
+  /**
+   * Resend order confirmation receipt
+   * @param {string} orderID The order ID
+   * @param {string} email The email to resend to
+   * @returns {Promise<Object>} API response
+   */
   resendConfirmation(orderID, email) {
     const path = `/orders/${orderID}/receipt`;
     return this.authHeaders().then(headers =>
@@ -350,6 +465,10 @@ export default class GoCommerce {
     );
   }
 
+  /**
+   * Claim orders for the logged-in user
+   * @returns {Promise<Object|null>} API response or null if no user
+   */
   claimOrders() {
     if (this.user) {
       return this.authHeaders().then(headers =>
@@ -362,6 +481,12 @@ export default class GoCommerce {
     return Promise.resolve(null);
   }
 
+  /**
+   * Update an order
+   * @param {string} orderId The order ID
+   * @param {Object} attributes Attributes to update
+   * @returns {Promise<Object>} Updated order
+   */
   updateOrder(orderId, attributes) {
     return this.authHeaders(true).then(headers =>
       this.api.request(`/orders/${orderId}`, {
@@ -372,6 +497,12 @@ export default class GoCommerce {
     );
   }
 
+  /**
+   * Get order history
+   * @param {Object} params Query parameters
+   * @param {Object} options Options like negatedParams
+   * @returns {Promise<Object>} Orders and pagination data
+   */
   orderHistory(params, { negatedParams } = {}) {
     let path = "/orders";
     if (params && params.user_id) {
@@ -388,6 +519,11 @@ export default class GoCommerce {
       .then(({ items, pagination }) => ({ orders: items, pagination }));
   }
 
+  /**
+   * Get order details
+   * @param {string} orderID The order ID
+   * @returns {Promise<Object>} Order details
+   */
   orderDetails(orderID) {
     return this.authHeaders().then(headers =>
       this.api.request(`/orders/${orderID}`, {
@@ -396,6 +532,12 @@ export default class GoCommerce {
     );
   }
 
+  /**
+   * Get order receipt
+   * @param {string} orderID The order ID
+   * @param {string} [template] Receipt template name
+   * @returns {Promise<Object>} Receipt response
+   */
   orderReceipt(orderID, template) {
     let path = `/orders/${orderID}/receipt`;
     if (template) {
@@ -408,6 +550,11 @@ export default class GoCommerce {
     );
   }
 
+  /**
+   * Get user details
+   * @param {string} [userId] The user ID (defaults to current user)
+   * @returns {Promise<Object>} User details
+   */
   userDetails(userId) {
     userId = userId || (this.user && this.user.id);
 
@@ -418,6 +565,11 @@ export default class GoCommerce {
     );
   }
 
+  /**
+   * Get downloads
+   * @param {Object} params Query parameters
+   * @returns {Promise<Object>} Downloads and pagination data
+   */
   downloads(params) {
     let path = "/downloads";
     if (params && params.order_id) {
@@ -434,6 +586,11 @@ export default class GoCommerce {
       .then(({ items, pagination }) => ({ downloads: items, pagination }));
   }
 
+  /**
+   * Get download URL
+   * @param {string} downloadId The download ID
+   * @returns {Promise<string>} The download URL
+   */
   downloadURL(downloadId) {
     const path = `/downloads/${downloadId}`;
     return this.authHeaders()
@@ -445,6 +602,11 @@ export default class GoCommerce {
       .then(response => response.url);
   }
 
+  /**
+   * Delete users
+   * @param {Array<string>} userIds Array of user IDs to delete
+   * @returns {Promise<Object>} API response
+   */
   deleteUsers(userIds) {
     const path = "/users" + (userIds.length > 0 ? "?" + userIds.map(id => `id=${id}`).join("&") : "");
     return this.authHeaders(true).then(headers =>
@@ -455,6 +617,11 @@ export default class GoCommerce {
     );
   }
 
+  /**
+   * Get users
+   * @param {Object} params Query parameters
+   * @returns {Promise<Object>} Users and pagination data
+   */
   users(params) {
     const path = pathWithQuery("/users", params);
     return this.authHeaders(true)
@@ -466,6 +633,12 @@ export default class GoCommerce {
       .then(({ items, pagination }) => ({ users: items, pagination }));
   }
 
+  /**
+   * Get report
+   * @param {string} name Report name
+   * @param {Object} params Query parameters
+   * @returns {Promise<Object>} Report data
+   */
   report(name, params) {
     const path = pathWithQuery(`/reports/${name}`, params);
     return this.authHeaders(true).then(headers =>
@@ -475,6 +648,11 @@ export default class GoCommerce {
     );
   }
 
+  /**
+   * Get authentication headers
+   * @param {boolean} required Whether authentication is required
+   * @returns {Promise<Object>} The authentication headers
+   */
   authHeaders(required) {
     if (this.user) {
       return this.user.jwt().then(token => ({ Authorization: `Bearer ${token}` }));
@@ -482,6 +660,9 @@ export default class GoCommerce {
     return required ? Promise.reject("The API action requires authentication") : Promise.resolve({});
   }
 
+  /**
+   * Load the cart from local storage
+   */
   loadCart() {
     const json = localStorage.getItem(this.cartKey);
     if (json) {
@@ -494,6 +675,10 @@ export default class GoCommerce {
     }
   }
 
+  /**
+   * Load settings from the server
+   * @returns {Promise}
+   */
   loadSettings() {
     if (this.settingsAreFresh()) {
       return Promise.resolve();
@@ -510,6 +695,10 @@ export default class GoCommerce {
     });
   }
 
+  /**
+   * Check if settings are fresh
+   * @returns {boolean}
+   */
   settingsAreFresh() {
     if (this.settings_path == null) {
       return true;
@@ -523,6 +712,11 @@ export default class GoCommerce {
     return false;
   }
 
+  /**
+   * Verify a VAT number
+   * @param {string} vatnumber The VAT number to verify
+   * @returns {Promise<boolean>}
+   */
   verifyVatnumber(vatnumber) {
     this.vatnumber_valid = false;
     if (!vatnumber) {
@@ -541,6 +735,11 @@ export default class GoCommerce {
     });
   }
 
+  /**
+   * Verify a coupon code
+   * @param {string} code The coupon code
+   * @returns {Promise<Object>}
+   */
   verifyCoupon(code) {
     return this.authHeaders(false).then(headers =>
       this.api.request(`/coupons/${code}`, {
@@ -549,6 +748,9 @@ export default class GoCommerce {
     );
   }
 
+  /**
+   * Persist the cart to local storage
+   */
   persistCart() {
     const json = JSON.stringify({ line_items: this.line_items, settings: this.settings });
     localStorage.setItem(this.cartKey, json);

@@ -1,3 +1,9 @@
+/**
+ * Check if the user has the required claims
+ * @param {Object} claims - The user's claims
+ * @param {Object} requiredClaims - The claims required for an action or discount
+ * @returns {boolean} - Returns true if all required claims are met, false otherwise
+ */
 export function checkClaims(claims, requiredClaims) {
   if (!requiredClaims) {
     return true;
