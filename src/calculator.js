@@ -116,6 +116,16 @@ function calculateTaxes(amountToTax, originalPrice, item, settings, country) {
   };
 }
 
+/**
+ * Calculate the total price of the items in the cart
+ * @param {Object} settings - Configuration settings for taxes and discounts
+ * @param {Object} claims - User claims
+ * @param {string} country - The billing country for VAT calculations
+ * @param {string} currency - The currency used for calculations
+ * @param {Object} coupon - The applied coupon
+ * @param {Array<Object>} items - The items in the cart
+ * @returns {Price} - The calculated price containing subtotal, taxes, discount, and total
+ */
 export function calculatePrices(
   settings,
   claims,
